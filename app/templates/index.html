@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Medical Concept Search</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100 min-h-screen p-6">
+    <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- LEFT PANEL -->
+      <div class="bg-white p-6 rounded-lg shadow-md col-span-1">
+        <h2 class="text-xl font-semibold mb-4">Search For Medical Diagnosis</h2>
+
+        <!-- Search Type Radios -->
+        <fieldset class="mb-4">
+          <legend class="text-sm font-medium text-gray-700 mb-2">
+            Search Type
+          </legend>
+          <div class="space-y-2">
+            <label class="flex items-center">
+              <input
+                id="type-option"
+                type="radio"
+                name="searchType"
+                value="like"
+                checked
+                class="mr-2"
+              />
+              LIKE
+            </label>
+
+            <label class="flex items-center">
+              <input
+                id="type-option"
+                type="radio"
+                name="searchType"
+                value="ilike"
+                class="mr-2"
+              />
+              ILIKE
+            </label>
+
+            <label class="flex items-center">
+              <input
+                id="type-option"
+                type="radio"
+                name="searchType"
+                value="regex"
+                class="mr-2"
+              />
+              Regex
+            </label>
+
+            <label class="flex items-center">
+              <input
+                id="type-option"
+                type="radio"
+                name="searchType"
+                value="fts"
+                class="mr-2"
+              />
+              Full Text Search
+            </label>
+
+            <label class="flex items-center">
+              <input
+                id="type-option"
+                type="radio"
+                name="searchType"
+                value="search_vector"
+                class="mr-2"
+              />
+              Search Vector
+            </label>
+            <label class="flex items-center">
+              <input
+                id="type-option"
+                type="radio"
+                name="searchType"
+                value="similarity"
+                class="mr-2"
+              />
+              Similarity
+            </label>
+          </div>
+        </fieldset>
+
+        <!-- Search Bar -->
+        <input
+          type="text"
+          id="search-box"
+          class="w-full p-3 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring focus:border-blue-300"
+          placeholder="Type a term..."
+          autocomplete="off"
+        />
+
+        <!-- Suggestions List -->
+        <ul
+          id="suggestions"
+          class="border border-gray-300 rounded-md shadow-sm divide-y divide-gray-100 hidden"
+        >
+          <!-- JS will inject suggestions here -->
+        </ul>
+      </div>
+
+      <!-- RIGHT PANEL (optional) -->
+      <div
+        class="w-full p-4 border rounded bg-gray-50 space-y-4"
+        id="description-container"
+      >
+        <h2 class="text-lg font-bold">Search Type Details</h2>
+        <p id="description-text" class="text-sm text-gray-700"></p>
+        <pre
+          class="bg-gray-800 text-white text-sm rounded p-3 overflow-auto"
+          id="query-code"
+        ><code></code></pre>
+        <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Pros -->
+          <div
+            class="bg-green-50 border border-green-200 rounded-xl p-4 shadow-sm"
+          >
+            <h3 class="text-green-800 text-lg font-semibold mb-2">✅ Pros</h3>
+            <ul
+              id="pros-list"
+              class="list-disc list-inside text-green-700 space-y-1"
+            >
+              <!-- JS will populate items here -->
+            </ul>
+          </div>
+
+          <!-- Cons -->
+          <div class="bg-red-50 border border-red-200 rounded-xl p-4 shadow-sm">
+            <h3 class="text-red-800 text-lg font-semibold mb-2">❌ Cons</h3>
+            <ul
+              id="cons-list"
+              class="list-disc list-inside text-red-700 space-y-1"
+            >
+              <!-- JS will populate items here -->
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- JS Logic -->
+    <script>
+      const searchBox = document.getElementById("search-box");
+      const suggestionsList = document.getElementById("suggestions");
+      const searchTypeRadios = document.getElementsByName("searchType");
+
+      function getSelectedSearchType() {
+        return Array.from(searchTypeRadios).find((r) => r.checked).value;
+      }
+
+      const handleSearch = async () => {
+        const term = searchBox.value.trim();
+        if (!term) {
+          suggestionsList.innerHTML = "";
+          suggestionsList.classList.add("hidden");
+          return;
+        }
+
+        const type = getSelectedSearchType();
+        const res = await fetch(
+          `/search_suggestions?q=${encodeURIComponent(term)}&type=${type}`
+        );
+        const data = await res.json();
+
+        suggestionsList.innerHTML = "";
+        if (data.length > 0) {
+          data.forEach((item) => {
+            const li = document.createElement("li");
+            li.className = "px-4 py-2 hover:bg-blue-50 cursor-pointer";
+            li.textContent = item.term;
+            li.addEventListener("click", () => {
+              searchBox.value = item.term;
+              suggestionsList.classList.add("hidden");
+            });
+            suggestionsList.appendChild(li);
+          });
+          suggestionsList.classList.remove("hidden");
+        } else {
+          suggestionsList.classList.add("hidden");
+        }
+      };
+
+      // Debounce function
+      function debounce(func, delay) {
+        let timeout;
+        return (...args) => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => func.apply(this, args), delay);
+        };
+      }
+
+      // Function to update description and code ui
+      function updateDescriptionUI(type, term) {
+        console.log("type,term", type, term);
+        term = term || "searchTerm";
+        let description = "";
+        let query = "";
+        let pros = [];
+        let cons = [];
+
+        switch (type) {
+          case "like":
+            description =
+              "Simple SQL pattern matching with LIKE (case-sensitive).";
+            query = `
+  SELECT *
+  FROM snomed
+  WHERE term LIKE '%${term}%'
+  LIMIT 10 OFFSET 0;
+            `;
+            pros = [
+              "Simple and easy to understand.",
+              "Supported on all SQL databases.",
+            ];
+            cons = [
+              "Case-sensitive (unless used with LOWER).",
+              "Not optimized for performance on large text columns.",
+            ];
+            break;
+          case "ilike":
+            description = "Pattern matching using ILIKE (case-insensitive).";
+            query = `
+  SELECT *
+  FROM snomed
+  WHERE term ILIKE '%${term}%'
+  LIMIT 10 OFFSET 0;
+            `;
+            pros = ["Case-insensitive search.", "Still very simple to use."];
+            cons = [
+              "Still not optimal for large datasets.",
+              "No ranking or scoring of results.",
+            ];
+            break;
+          case "regex":
+            description =
+              "Uses a regular expression to match patterns in the term field. This is flexible but may be slower on large datasets.";
+            query = `
+  SELECT * 
+  FROM snomed 
+  WHERE term ~ ${term}
+  LIMIT 10 OFFSET 0;
+            `;
+            pros = [
+              "Highly flexible pattern matching.",
+              "Powerful for complex string patterns.",
+            ];
+            cons = [
+              "Can be slow on large datasets.",
+              "Syntax is more complex than LIKE/ILIKE.",
+            ];
+            break;
+          case "fts":
+            description =
+              "Leverages PostgreSQL's full text search using to_tsvector and to_tsquery for more advanced text searching.";
+            query = `
+  SELECT * 
+  FROM snomed 
+  WHERE to_tsvector('english', term) @@ to_tsquery('english', ${term}) 
+  LIMIT 10 OFFSET 0;
+            `;
+            pros = [
+              "Supports stemming and tokenization.",
+              "Much faster than LIKE/ILIKE for large text data.",
+            ];
+            cons = [
+              "Requires configuration and indexing.",
+              "Not ideal for partial word search.",
+            ];
+            break;
+          case "search_vector":
+            description =
+              "Uses a precomputed search_vector column for fast and efficient full-text search using phraseto_tsquery.";
+            query = `
+  SELECT * 
+  FROM snomed 
+  WHERE search_vector @@ phraseto_tsquery('english', ${term}) 
+  ORDER BY 
+    array_length(string_to_array(term, ' '), 1) ASC, 
+    position(lower(${term}) in lower(term)) ASC, 
+    ts_rank(search_vector, phraseto_tsquery('english', ${term}), 1) DESC 
+  LIMIT 10 OFFSET 0;
+            `;
+            pros = [
+              "Extremely fast with proper GIN indexing.",
+              "Supports ranked and more intelligent results.",
+            ];
+            cons = [
+              "Requires additional storage and preprocessing.",
+              "Complex setup compared to basic LIKE.",
+            ];
+            break;
+          case "similarity":
+            description =
+              "Uses trigram similarity (pg_trgm) to find closely matching terms.";
+            query = `
+  SELECT *, similarity(term, ${term}) AS sim
+  FROM snomed
+  WHERE term % ${term}
+  ORDER BY sim DESC
+  LIMIT 10 OFFSET 0;
+            `;
+            pros = [
+              "Great for fuzzy matching.",
+              "Handles typos and similar terms well.",
+            ];
+            cons = [
+              "Requires `pg_trgm` extension.",
+              "Might return irrelevant matches on short terms.",
+            ];
+            break;
+          default:
+            console.log("Default Case");
+        }
+
+        document.getElementById("description-text").textContent = description;
+        document.getElementById("query-code").textContent = query;
+
+        // Clear and populate pros
+        const prosList = document.getElementById("pros-list");
+        prosList.innerHTML = ""; // Clear previous items
+        pros.forEach((item) => {
+          const li = document.createElement("li");
+          li.textContent = item;
+          prosList.appendChild(li);
+        });
+
+        // Clear and populate cons
+        const consList = document.getElementById("cons-list");
+        consList.innerHTML = "";
+        cons.forEach((item) => {
+          const li = document.createElement("li");
+          li.textContent = item;
+          consList.appendChild(li);
+        });
+      }
+
+      // Wrap fetchSuggestions with debounce
+      const debouncedFetch = debounce(() => {
+        const term = searchBox.value.trim();
+        console.log("term in debounce", term);
+        const type = getSelectedSearchType();
+        updateDescriptionUI(type, term);
+        handleSearch();
+      }, 700);
+
+      // Implement Search after searchbox debounce period
+      searchBox.addEventListener("input", debouncedFetch);
+
+      // Implement Search after type change
+      searchTypeRadios.forEach((radio) => {
+        radio.addEventListener("change", function () {
+          console.log("radio.value", radio.value);
+          const term = searchBox.value.trim();
+          updateDescriptionUI(radio.value, term);
+          console.log("after update description");
+          handleSearch();
+        });
+      });
+
+      // Fill Right side Container Content on Page load
+      document.addEventListener("DOMContentLoaded", () => {
+        console.log("content load");
+        const term = searchBox.value.trim();
+        console.log("term", term);
+        const initialType = getSelectedSearchType();
+        console.log("initialType", initialType);
+        updateDescriptionUI(initialType, term);
+        console.log("after description update");
+      });
+
+      document.addEventListener("click", (e) => {
+        if (!searchBox.contains(e.target)) {
+          suggestionsList.classList.add("hidden");
+        }
+      });
+    </script>
+  </body>
+</html>

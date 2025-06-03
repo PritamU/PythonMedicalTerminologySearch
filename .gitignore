@@ -1,0 +1,29 @@
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Python Bytecode and Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.cache/
+
+# Flask Instance Folder
+instance/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+
+# Sensitive files (example, adjust as needed)
+*.sqlite3
+*.log
