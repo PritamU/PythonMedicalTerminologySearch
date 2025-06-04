@@ -17,7 +17,7 @@
           <legend class="text-sm font-medium text-gray-700 mb-2">
             Search Type
           </legend>
-          <div class="space-y-2">
+          <div class="grid grid-cols-2 space-y-2">
             <label class="flex items-center">
               <input
                 id="type-option"
@@ -73,6 +73,7 @@
               />
               Search Vector
             </label>
+
             <label class="flex items-center">
               <input
                 id="type-option"
@@ -82,6 +83,17 @@
                 class="mr-2"
               />
               Similarity
+            </label>
+
+            <label class="flex items-center">
+              <input
+                id="type-option"
+                type="radio"
+                name="searchType"
+                value="fts-similarity"
+                class="mr-2"
+              />
+              FTS + Similarity
             </label>
           </div>
         </fieldset>
@@ -196,7 +208,6 @@
 
       // Function to update description and code ui
       function updateDescriptionUI(type, term) {
-        console.log("type,term", type, term);
         term = term || "searchTerm";
         let description = "";
         let query = "";
@@ -206,7 +217,7 @@
         switch (type) {
           case "like":
             description =
-              "Simple SQL pattern matching with LIKE (case-sensitive).";
+              "The LIKE operator is used for basic pattern matching in SQL. It supports % (wildcard) for any number of characters and _ for a single character.";
             query = `
   SELECT *
   FROM snomed
@@ -223,7 +234,8 @@
             ];
             break;
           case "ilike":
-            description = "Pattern matching using ILIKE (case-insensitive).";
+            description =
+              "ILIKE is a case-insensitive version of LIKE, mainly available in PostgreSQL. It treats uppercase and lowercase characters equally, useful for user-friendly matching. Like LIKE, it doesn’t support stemming or tokenization and can be slow without proper indexing.";
             query = `
   SELECT *
   FROM snomed
@@ -238,11 +250,10 @@
             break;
           case "regex":
             description =
-              "Uses a regular expression to match patterns in the term field. This is flexible but may be slower on large datasets.";
+              "Regex (regular expressions) allows complex pattern matching using symbols and operators like ~, ~*, and SIMILAR TO in PostgreSQL. It’s extremely powerful for validating formats or finding text patterns but is resource-intensive and not index-optimized for large-scale search.";
             query = `
-  SELECT * 
-  FROM snomed 
-  WHERE term ~ ${term}
+  SELECT * FROM snomed
+  WHERE term SIMILAR TO '%(${term})'
   LIMIT 10 OFFSET 0;
             `;
             pros = [
@@ -256,7 +267,7 @@
             break;
           case "fts":
             description =
-              "Leverages PostgreSQL's full text search using to_tsvector and to_tsquery for more advanced text searching.";
+              "FTS enables semantic search using tokenization, stemming, and stop-word removal. PostgreSQL's FTS uses tsvector and tsquery to rank results based on relevance. Ideal for large text fields like articles, product descriptions, or logs where meaning matters more than exact match.";
             query = `
   SELECT * 
   FROM snomed 
@@ -274,7 +285,7 @@
             break;
           case "search_vector":
             description =
-              "Uses a precomputed search_vector column for fast and efficient full-text search using phraseto_tsquery.";
+              "A tsvector is a special PostgreSQL data type used to store a pre-processed searchable version of a text field for FTS. It breaks text into normalized tokens with positions. Indexed with GIN, it makes semantic and ranked search highly efficient and scalable.";
             query = `
   SELECT * 
   FROM snomed 
@@ -296,11 +307,11 @@
             break;
           case "similarity":
             description =
-              "Uses trigram similarity (pg_trgm) to find closely matching terms.";
+              "The similarity() function (from the pg_trgm extension) calculates how alike two strings are using trigram matching. It returns a score between 0 and 1. It’s great for typo-tolerant, fuzzy searches, especially when users may input misspelled or partial words.";
             query = `
-  SELECT *, similarity(term, ${term}) AS sim
+  SELECT *, similarity(term, '${term}') AS sim
   FROM snomed
-  WHERE term % ${term}
+  WHERE term % '${term}'
   ORDER BY sim DESC
   LIMIT 10 OFFSET 0;
             `;
@@ -311,6 +322,37 @@
             cons = [
               "Requires `pg_trgm` extension.",
               "Might return irrelevant matches on short terms.",
+            ];
+            break;
+          case "fts-similarity":
+            description =
+              "Combining Full-Text Search with Trigram Similarity offers both relevance-based and typo-tolerant search. FTS ensures context-aware results, while trigram handles spelling errors. This hybrid method is ideal for search bars, medical records, or any domain needing smart, forgiving, and fast search capabilities.";
+            query = `
+  WITH ranked AS (
+  SELECT *,
+         ts_rank(search_vector, plainto_tsquery('english', '${term}')) AS fts_rank,
+         similarity(term, '${term}') AS trigram_sim
+  FROM snomed
+  WHERE
+    search_vector @@ plainto_tsquery('english', '${term}')
+    OR term % '${term}'
+  )
+  SELECT *
+  FROM ranked
+  ORDER BY
+    fts_rank DESC,
+    trigram_sim DESC
+  LIMIT 10 OFFSET 0;
+
+            `;
+            pros = [
+              "Handles typos + understands context.",
+              "Shows the best possible results first.",
+              "Indexes support high performance.",
+            ];
+            cons = [
+              "Might return too many loose matches.",
+              "FTS may miss fuzzy matches.",
             ];
             break;
           default:
@@ -342,7 +384,7 @@
       // Wrap fetchSuggestions with debounce
       const debouncedFetch = debounce(() => {
         const term = searchBox.value.trim();
-        console.log("term in debounce", term);
+
         const type = getSelectedSearchType();
         updateDescriptionUI(type, term);
         handleSearch();
@@ -354,23 +396,20 @@
       // Implement Search after type change
       searchTypeRadios.forEach((radio) => {
         radio.addEventListener("change", function () {
-          console.log("radio.value", radio.value);
           const term = searchBox.value.trim();
           updateDescriptionUI(radio.value, term);
-          console.log("after update description");
+
           handleSearch();
         });
       });
 
       // Fill Right side Container Content on Page load
       document.addEventListener("DOMContentLoaded", () => {
-        console.log("content load");
         const term = searchBox.value.trim();
-        console.log("term", term);
+
         const initialType = getSelectedSearchType();
-        console.log("initialType", initialType);
+
         updateDescriptionUI(initialType, term);
-        console.log("after description update");
       });
 
       document.addEventListener("click", (e) => {

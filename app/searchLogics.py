@@ -42,7 +42,7 @@ def search_concepts(term, type, limit=10, offset=0):
             query = text("""
                 SELECT * FROM snomed
                 WHERE term SIMILAR TO :term
-                LIMIT :limit OFFSET :offset
+                LIMIT :limit OFFSET :offset;
             """)
             term = f"%({term})%"
 
@@ -52,24 +52,25 @@ def search_concepts(term, type, limit=10, offset=0):
                 FROM snomed
                 WHERE term % :term
                 ORDER BY sim DESC
-                LIMIT :limit OFFSET :offset
+                LIMIT :limit OFFSET :offset;
             """)
-
-        case 'levenshtein':
+        case 'fts-similarity':
             query = text("""
-                SELECT *, levenshtein(term, :term) AS dist
-                FROM medical_concepts
-                WHERE levenshtein(term, :term) < 3
-                ORDER BY dist
-                LIMIT :limit OFFSET :offset
-            """)
-
-        case 'soundex':
-            query = text("""
+                WITH ranked AS (
+                SELECT *,
+                    ts_rank(search_vector, plainto_tsquery('english', :term)) AS fts_rank,
+                    similarity(term, :term) AS trigram_sim
+                FROM snomed
+                WHERE
+                    search_vector @@ plainto_tsquery('english', :term)
+                OR term % :term
+                )
                 SELECT *
-                FROM medical_concepts
-                WHERE soundex(term) = soundex(:term)
-                LIMIT :limit OFFSET :offset
+                FROM ranked
+                ORDER BY
+                    fts_rank DESC,
+                    trigram_sim DESC
+                LIMIT :limit OFFSET :offset;
             """)
     
         case _:
