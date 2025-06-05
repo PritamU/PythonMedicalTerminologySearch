@@ -1,7 +1,7 @@
 from sqlalchemy import text
 from app.extensions import db
 
-def search_concepts(term, type, limit=10, offset=0):
+def search_concepts(term, type, limit=5, offset=0):
     print('search function',term)
     query=''
     match type:

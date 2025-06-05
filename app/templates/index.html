@@ -103,7 +103,7 @@
           type="text"
           id="search-box"
           class="w-full p-3 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring focus:border-blue-300"
-          placeholder="Type a term..."
+          placeholder="Type a term (e.g. : Salmonella)"
           autocomplete="off"
         />
 
@@ -222,7 +222,7 @@
   SELECT *
   FROM snomed
   WHERE term LIKE '%${term}%'
-  LIMIT 10 OFFSET 0;
+  LIMIT 5 OFFSET 0;
             `;
             pros = [
               "Simple and easy to understand.",
@@ -240,7 +240,7 @@
   SELECT *
   FROM snomed
   WHERE term ILIKE '%${term}%'
-  LIMIT 10 OFFSET 0;
+  LIMIT 5 OFFSET 0;
             `;
             pros = ["Case-insensitive search.", "Still very simple to use."];
             cons = [
@@ -254,7 +254,7 @@
             query = `
   SELECT * FROM snomed
   WHERE term SIMILAR TO '%(${term})'
-  LIMIT 10 OFFSET 0;
+  LIMIT 5 OFFSET 0;
             `;
             pros = [
               "Highly flexible pattern matching.",
@@ -272,7 +272,7 @@
   SELECT * 
   FROM snomed 
   WHERE to_tsvector('english', term) @@ to_tsquery('english', ${term}) 
-  LIMIT 10 OFFSET 0;
+  LIMIT 5 OFFSET 0;
             `;
             pros = [
               "Supports stemming and tokenization.",
@@ -294,7 +294,7 @@
     array_length(string_to_array(term, ' '), 1) ASC, 
     position(lower(${term}) in lower(term)) ASC, 
     ts_rank(search_vector, phraseto_tsquery('english', ${term}), 1) DESC 
-  LIMIT 10 OFFSET 0;
+  LIMIT 5 OFFSET 0;
             `;
             pros = [
               "Extremely fast with proper GIN indexing.",
@@ -313,7 +313,7 @@
   FROM snomed
   WHERE term % '${term}'
   ORDER BY sim DESC
-  LIMIT 10 OFFSET 0;
+  LIMIT 5 OFFSET 0;
             `;
             pros = [
               "Great for fuzzy matching.",
@@ -342,7 +342,7 @@
   ORDER BY
     fts_rank DESC,
     trigram_sim DESC
-  LIMIT 10 OFFSET 0;
+  LIMIT 5 OFFSET 0;
 
             `;
             pros = [
